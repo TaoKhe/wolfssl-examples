@@ -35,10 +35,12 @@
 #include <wolfssl/ssl.h>
 #include <errno.h>
 #include <signal.h>
+#include <locale.h>
 
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
+    #include <windows.h>
     #define DTLS_CLOSE_SOCKET(s) closesocket(s)
 #else
     #include <netdb.h>
@@ -88,6 +90,10 @@ int main(int argc, char** argv)
         fprintf(stderr, "WSAStartup failed: %d\n", ret);
         return exitVal;
     }
+
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
+    setlocale(LC_ALL, ".UTF-8");
 #endif
 
     /* Initialize wolfSSL before assigning ctx */

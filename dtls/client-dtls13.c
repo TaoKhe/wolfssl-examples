@@ -37,10 +37,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
+    #include <windows.h>
     #define DTLS_CLOSE_SOCKET(s) closesocket(s)
 #else
     #include <unistd.h>
@@ -52,6 +54,33 @@
 #endif
 
 #include "dtls-common.h"
+
+#ifdef _WIN32
+static int read_stdin_line_utf8(char* out, size_t outSz)
+{
+    HANDLE inHandle;
+    DWORD mode = 0;
+    wchar_t wbuf[MAXLINE];
+    DWORD readChars = 0;
+    int utf8Len;
+
+    if (out == NULL || outSz == 0) {
+        return 0;
+    }
+
+    inHandle = GetStdHandle(STD_INPUT_HANDLE);
+    if (inHandle != INVALID_HANDLE_VALUE && GetConsoleMode(inHandle, &mode)) {
+        if (!ReadConsoleW(inHandle, wbuf, MAXLINE - 1, &readChars, NULL) || readChars == 0) {
+            return 0;
+        }
+        wbuf[readChars] = L'\0';
+        utf8Len = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, out, (int)outSz, NULL, NULL);
+        return utf8Len > 0;
+    }
+
+    return fgets(out, (int)outSz, stdin) != NULL;
+}
+#endif
 
 int main (int argc, char** argv)
 {
@@ -84,6 +113,10 @@ int main (int argc, char** argv)
         fprintf(stderr, "WSAStartup failed: %d\n", ret);
         return exitVal;
     }
+
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
+    setlocale(LC_ALL, ".UTF-8");
 #endif
 
     /* Initialize wolfSSL before assigning ctx */
@@ -159,7 +192,11 @@ int main (int argc, char** argv)
 /*****************************************************************************/
 /*                  Code for sending datagram to server                      */
     while (1) {
-        if (fgets(sendLine, MAXLINE, stdin) == NULL)
+#ifdef _WIN32
+    if (!read_stdin_line_utf8(sendLine, sizeof(sendLine)))
+#else
+    if (fgets(sendLine, MAXLINE, stdin) == NULL)
+#endif
             break;
 
         if (strncmp(sendLine, "end", 3) == 0)
