@@ -32,20 +32,32 @@
 #include <stdio.h>                  /* standard in/out procedures */
 #include <stdlib.h>                 /* defines system calls */
 #include <string.h>                 /* necessary for memset */
-#include <netdb.h>
-#include <sys/socket.h>             /* used for all socket calls */
-#include <netinet/in.h>             /* used for sockaddr_in */
-#include <arpa/inet.h>
 #include <wolfssl/ssl.h>
 #include <errno.h>
 #include <signal.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #define DTLS_CLOSE_SOCKET(s) closesocket(s)
+#else
+    #include <netdb.h>
+    #include <sys/socket.h>             /* used for all socket calls */
+    #include <netinet/in.h>             /* used for sockaddr_in */
+    #include <arpa/inet.h>
+    #include <unistd.h>
+    #define DTLS_CLOSE_SOCKET(s) close(s)
+#endif
 
 #include "dtls-common.h"
 
 WOLFSSL_CTX*  ctx = NULL;
 WOLFSSL*      ssl = NULL;
+#ifdef _WIN32
+SOCKET        listenfd = INVALID_SOCKET;   /* Initialize our socket */
+#else
 int           listenfd = INVALID_SOCKET;   /* Initialize our socket */
+#endif
 
 static void sig_handler(const int sig);
 static void free_resources(void);
@@ -62,6 +74,21 @@ int main(int argc, char** argv)
     socklen_t     cliLen;
     char          buff[MAXLINE];   /* the incoming message */
     char          ack[] = "I hear you fashizzle!\n";
+
+#ifdef _WIN32
+    WSADATA       wsaData;
+#endif
+
+    (void)argc;
+    (void)argv;
+
+#ifdef _WIN32
+    ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", ret);
+        return exitVal;
+    }
+#endif
 
     /* Initialize wolfSSL before assigning ctx */
     if (wolfSSL_Init() != WOLFSSL_SUCCESS) {
@@ -168,6 +195,7 @@ int main(int argc, char** argv)
                 printf("heard %d bytes\n", recvLen);
 
                 buff[recvLen] = '\0';
+                buff[strcspn(buff, "\r\n")] = '\0';
                 printf("I heard this: \"%s\"\n", buff);
             }
             else if (recvLen <= 0) {
@@ -211,6 +239,9 @@ int main(int argc, char** argv)
 cleanup:
     free_resources();
     wolfSSL_Cleanup();
+#ifdef _WIN32
+    WSACleanup();
+#endif
 
     return exitVal;
 }
@@ -221,6 +252,9 @@ static void sig_handler(const int sig)
     (void)sig;
     free_resources();
     wolfSSL_Cleanup();
+#ifdef _WIN32
+    WSACleanup();
+#endif
 }
 
 static void free_resources(void)
@@ -235,7 +269,7 @@ static void free_resources(void)
         ctx = NULL;
     }
     if (listenfd != INVALID_SOCKET) {
-        close(listenfd);
+        DTLS_CLOSE_SOCKET(listenfd);
         listenfd = INVALID_SOCKET;
     }
 }

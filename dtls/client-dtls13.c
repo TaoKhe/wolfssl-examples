@@ -32,16 +32,24 @@
 #ifndef WOLFSSL_USER_SETTINGS
 #include <wolfssl/options.h>
 #endif
-#include <unistd.h>
 #include <wolfssl/ssl.h>
-#include <netdb.h>
 #include <signal.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #define DTLS_CLOSE_SOCKET(s) closesocket(s)
+#else
+    #include <unistd.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
+    #include <arpa/inet.h>
+    #include <netinet/in.h>
+    #define DTLS_CLOSE_SOCKET(s) close(s)
+#endif
 
 #include "dtls-common.h"
 
@@ -49,7 +57,12 @@ int main (int argc, char** argv)
 {
     /* standard variables used in a dtls client */
     int             n = 0;
+#ifdef _WIN32
+    SOCKET          sockfd = INVALID_SOCKET;
+    WSADATA         wsaData;
+#else
     int             sockfd = INVALID_SOCKET;
+#endif
     int             err;
     int             ret;
     int             exitVal = 1;
@@ -64,6 +77,14 @@ int main (int argc, char** argv)
         fprintf(stderr, "usage: %s <IP address>\n", argv[0]);
         return exitVal;
     }
+
+#ifdef _WIN32
+    ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", ret);
+        return exitVal;
+    }
+#endif
 
     /* Initialize wolfSSL before assigning ctx */
     if (wolfSSL_Init() != WOLFSSL_SUCCESS) {
@@ -188,10 +209,13 @@ cleanup:
         wolfSSL_free(ssl);
     }
     if (sockfd != INVALID_SOCKET)
-        close(sockfd);
+        DTLS_CLOSE_SOCKET(sockfd);
     if (ctx != NULL)
         wolfSSL_CTX_free(ctx);
     wolfSSL_Cleanup();
+#ifdef _WIN32
+    WSACleanup();
+#endif
 
     return exitVal;
 }

@@ -1,8 +1,22 @@
 # DTLS Examples Makefile
 CC       = gcc
-WOLFSSL_INSTALL_DIR = /usr/local
+WOLFSSL_INSTALL_DIR ?= /usr/local
 CFLAGS   = -Wall -I$(WOLFSSL_INSTALL_DIR)/include
 LIBS     = -L$(WOLFSSL_INSTALL_DIR)/lib -lm
+UNAME_S  := $(shell uname -s)
+WIN_LIBS :=
+
+ifeq ($(OS),Windows_NT)
+WOLFSSL_INSTALL_DIR = /ucrt64
+WIN_LIBS += -lws2_32
+endif
+
+ifneq (,$(findstring MINGW,$(UNAME_S)))
+WOLFSSL_INSTALL_DIR = /ucrt64
+WIN_LIBS += -lws2_32
+endif
+
+LIBS += $(sort $(WIN_LIBS))
 
 # option variables
 DYN_LIB         = -lwolfssl

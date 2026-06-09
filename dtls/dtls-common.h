@@ -28,7 +28,9 @@
 #ifndef DTLS_COMMON_H_
 #define DTLS_COMMON_H_
 
+#ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
+#endif
 #define MAXLINE   4096
 #define SERV_PORT 11111
 #define LOOP_LIMIT 5
